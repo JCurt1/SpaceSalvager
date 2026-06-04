@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Space Salvager - ASCII Edition</title>
+    <style>
+        body {
+            background-color: #121214;
+            color: #00ff66;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+        .stats-panel {
+            border: 1px solid #00ff66;
+            padding: 12px;
+            margin-bottom: 20px;
+            background-color: #1a1a1e;
+            display: flex;
+            justify-content: space-between;
+        }
+        .combat-zone {
+            background: #251111;
+            border: 1px solid #ff3333;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .enemy-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+        }
+        .enemy-box {
+            text-align: center;
+            border: 1px dashed #ff3333;
+            padding: 10px;
+            width: 45%;
+        }
+        /* Crucial for ASCII art: preserves spaces and line breaks */
+        pre {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            line-height: 1.1;
+            margin: 10px 0;
+            color: #ff3333;
+            background: #150808;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .hero-pre {
+            color: #00ff66;
+            background: none;
+            margin: 0;
+            padding: 0;
+            font-size: 0.75rem;
+        }
+        .story-text {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            min-height: 120px;
+        }
+        .combat-log {
+            color: #ffcc00;
+            font-size: 0.95rem;
+            margin-top: 15px;
+            border-top: 1px solid #ffcc00;
+            padding-top: 10px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            background: #1a1a1e;
+            color: #00ff66;
+            border: 1px solid #00ff66;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: left;
+        }
+        .btn:hover {
+            background: #00ff66;
+            color: #121214;
+        }
+        .btn-combat {
+            border-color: #ff3333;
+            color: #ff3333;
+        }
+        .btn-combat:hover {
+            background: #ff3333;
+            color: #121214;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stats-panel">
+        <div>
+<pre class="hero-pre">
+ O 
+/|\  [Scalpel]
+/ \ 
+</pre>
+            <strong>HERO HP:</strong> <span id="player-hp">80</span>/100
+        </div>
+        <div style="text-align: right;">
+            <strong>INVENTORY:</strong> <span id="player-inv">ID Badge</span>
+        </div>
+    </div>
+
+    <div class="combat-zone" id="enemy-panel">
+        <div style="font-weight: bold; color: #ff3333; text-align: center;">⚠️ HOSTILE ENTRANTS DETECTED</div>
+        
+        <div class="enemy-container">
+            <div class="enemy-box" id="card-droid">
+                <div>🤖 Droid</div>
+                <pre id="sprite-droid">
+  [o_o]  
+  /[_]\=🔧
+  _|_|_ 
+                </pre>
+                <div><strong>HP:</strong> <span id="droid-hp">35</span></div>
+            </div>
+
+            <div class="enemy-box" id="card-alien">
+                <div>👽 Alien</div>
+                <pre id="sprite-alien">
+ _/\_/\_ 
+( o.o )  
+ > ^ <  
+                </pre>
+                <div><strong>HP:</strong> <span id="alien-hp">45</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="story-text">
+        <div id="story-box"></div>
+        <div class="combat-log" id="log-box" style="display: none;"></div>
+    </div>
+
+    <div id="choices-box"></div>
+
+    <script>
+        let gameState = {
+            player: { hp: 80, inventory: ["ID Badge"] },
+            enemies: {
+                droid: { name: "Maintenance Droid", hp: 35, alive: true, dmg: 8 },
+                alien: { name: "Alien Stalker", hp: 45, alive: true, dmg: 12 }
+            },
+            inCombat: false
+        };
+
+        const scenes = {
+            med_bay: {
+                text: "You awaken on a cold medical bed, your head pounding. Red emergency lights pulse against the metal walls. The room is trashed—syringes and broken glass cover the floor. The heavy steel door is slightly ajar.",
+                choices: [
+                    { text: "Search the room for supplies", nextScene: "search_med_bay" },
+                    { text: "Pry open the door and exit into the corridor", nextScene: "corridor_intro" }
+                ]
+            },
+            search_med_bay: {
+                text: "You quickly rummage through a tipped-over crash cart. Beneath some shattered vials, you find an emergency Scalpel and a small canister of Bio-Gel! You slip them into your pocket.",
+                onEnter: () => {
+                    if (!gameState.player.inventory.includes("Scalpel")) {
+                        gameState.player.inventory.push("Scalpel", "Bio-Gel");
+                    }
+                },
+                choices: [
+                    { text: "Step out into the flickering corridor", nextScene: "corridor_intro" }
+                ]
+            },
+            corridor_intro: {
+                text: "The main hallway is a zone of total chaos. Sparks shower from exposed wiring. Ten feet away, a corrupted Maintenance Droid is dragging a heavy wrench. Right behind it, a sleek, insectoid Alien Stalker clings to the ceiling. They both turn toward you...",
+                choices: [
+                    { text: "Raise your hands and prepare for combat!", action: () => startCombat() }
+                ]
+            }
+        };
+
+        function renderScene(sceneId) {
+            const scene = scenes[sceneId];
+            if (scene.onEnter) scene.onEnter();
+
+            document.getElementById("story-box").innerText = scene.text;
+            updateUI();
+
+            const choicesBox = document.getElementById("choices-box");
+            choicesBox.innerHTML = "";
+
+            scene.choices.forEach(choice => {
+                const button = document.createElement("button");
+                button.className = "btn";
+                button.innerText = choice.text;
+                if (choice.nextScene) {
+                    button.onclick = () => renderScene(choice.nextScene);
+                } else if (choice.action) {
+                    button.onclick = choice.action;
+                }
+                choicesBox.appendChild(button);
+            });
+        }
+
+        function updateUI() {
+            document.getElementById("player-hp").innerText = gameState.player.hp;
+            document.getElementById("player-inv").innerText = gameState.player.inventory.join(", ");
+            document.getElementById("droid-hp").innerText = gameState.enemies.droid.hp;
+            document.getElementById("alien-hp").innerText = gameState.enemies.alien.hp;
+        }
+
+        function startCombat() {
+            gameState.inCombat = true;
+            document.getElementById("enemy-panel").style.display = "block";
+            document.getElementById("log-box").style.display = "block";
+            document.getElementById("log-box").innerHTML = "<em>Combat Started! Choose a target.</em>";
+            document.getElementById("story-box").innerText = "The hallway corners you. You have to take them down before they tear you apart.";
+            generateCombatChoices();
+        }
+
+        function generateCombatChoices() {
+            const choicesBox = document.getElementById("choices-box");
+            choicesBox.innerHTML = "";
+
+            if (gameState.player.hp <= 0) {
+                document.getElementById("story-box").innerText = "🚨 GAME OVER. You succumbed to your injuries in the dark corridors.";
+                const restartBtn = document.createElement("button");
+                restartBtn.className = "btn";
+                restartBtn.innerText = "Restart Simulation";
+                restartBtn.onclick = () => location.reload();
+                choicesBox.appendChild(restartBtn);
+                return;
+            }
+
+            if (!gameState.enemies.droid.alive && !gameState.enemies.alien.alive) {
+                document.getElementById("enemy-panel").style.display = "none";
+                document.getElementById("story-box").innerText = "Silence falls over the corridor. The monsters have been cleared. You survived the initial outbreak!";
+                const winBtn = document.createElement("button");
+                winBtn.className = "btn";
+                winBtn.innerText = "Proceed Deeper (Victory!)";
+                winBtn.onclick = () => location.reload();
+                choicesBox.appendChild(winBtn);
+                return;
+            }
+
+            if (gameState.enemies.droid.alive) {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-combat";
+                btn.innerText = "💥 Strike Maintenance Droid";
+                btn.onclick = () => executeTurn("droid");
+                choicesBox.appendChild(btn);
+            }
+
+            if (gameState.enemies.alien.alive) {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-combat";
+                btn.innerText = "💥 Strike Alien Stalker";
+                btn.onclick = () => executeTurn("alien");
+                choicesBox.appendChild(btn);
+            }
+
+            if (gameState.player.inventory.includes("Bio-Gel")) {
+                const btn = document.createElement("button");
+                btn.className = "btn";
+                btn.innerText = "🧪 Consume Bio-Gel (+25 HP)";
+                btn.onclick = () => useItem("Bio-Gel");
+                choicesBox.appendChild(btn);
+            }
+        }
+
+        function executeTurn(targetKey) {
+            let log = "";
+            let damage = 6;
+
+            if (gameState.player.inventory.includes("Scalpel")) {
+                damage = 14; 
+            }
+
+            let target = gameState.enemies[targetKey];
+            target.hp -= damage;
+            log += `You slash the ${target.name} for ${damage} damage.<br>`;
+
+            if (target.hp <= 0) {
+                target.hp = 0;
+                target.alive = false;
+                log += `✨ <strong>The ${target.name} is destroyed!</strong><br>`;
+                document.getElementById(`card-${targetKey}`).style.opacity = "0.2";
+                // Change the ASCII art to an explosion/wreckage look!
+                document.getElementById(`sprite-${targetKey}`).innerText = "\n  *CRASH* \n  x__x \n";
+            }
+
+            log += "<span style='color: #ff3333;'>";
+            if (gameState.enemies.droid.alive) {
+                gameState.player.hp -= gameState.enemies.droid.dmg;
+                log += `• Droid hits you for ${gameState.enemies.droid.dmg} dmg.<br>`;
+            }
+            if (gameState.enemies.alien.alive) {
+                gameState.player.hp -= gameState.enemies.alien.dmg;
+                log += `• Alien hits you for ${gameState.enemies.alien.dmg} dmg.<br>`;
+            }
+            log += "</span>";
+
+            if (gameState.player.hp <= 0) gameState.player.hp = 0;
+
+            document.getElementById("log-box").innerHTML = log;
+            updateUI();
+            generateCombatChoices();
+        }
+
+        function useItem(itemName) {
+            if (itemName === "Bio-Gel") {
+                gameState.player.hp = Math.min(gameState.player.hp + 25, 100);
+                const index = gameState.player.inventory.indexOf("Bio-Gel");
+                if (index > -1) gameState.player.inventory.splice(index, 1);
+                
+                let log = "You apply the Bio-Gel. Wounds closed (+25 HP).<br>";
+                log += "<span style='color: #ff3333;'>";
+                if (gameState.enemies.droid.alive) {
+                    gameState.player.hp -= gameState.enemies.droid.dmg;
+                    log += `• Droid hits you for ${gameState.enemies.droid.dmg} dmg.<br>`;
+                }
+                if (gameState.enemies.alien.alive) {
+                    gameState.player.hp -= gameState.enemies.alien.dmg;
+                    log += `• Alien hits you for ${gameState.enemies.alien.dmg} dmg.<br>`;
+                }
+                log += "</span>";
+
+                if (gameState.player.hp <= 0) gameState.player.hp = 0;
+
+                document.getElementById("log-box").innerHTML = log;
+                updateUI();
+                generateCombatChoices();
+            }
+        }
+
+        renderScene("med_bay");
+    </script>
+</body>
+</html>
