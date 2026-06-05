@@ -19,6 +19,7 @@
             background-color: #1a1a1e;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
         .combat-zone {
             background: #251111;
@@ -105,9 +106,13 @@
 <pre class="hero-pre">
  O 
 /|\  [Scalpel]
-/ \ 
+/ \  
 </pre>
-            <strong>HERO HP:</strong> <span id="player-hp">80</span>/100
+            <strong>HERO HP:</strong> <span id="player-hp">80</span>/<span id="player-max-hp">100</span>
+        </div>
+        <div style="text-align: center;">
+            <strong>LVL:</strong> <span id="player-lvl">1</span><br>
+            <strong>EXP:</strong> <span id="player-exp">0</span> / <span id="player-next-exp">100</span>
         </div>
         <div style="text-align: right;">
             <strong>INVENTORY:</strong> <span id="player-inv">ID Badge</span>
@@ -149,10 +154,17 @@
 
     <script>
         let gameState = {
-            player: { hp: 80, inventory: ["ID Badge"] },
+            player: { 
+                hp: 80, 
+                maxHp: 100,
+                level: 1,
+                exp: 0,
+                nextLevelExp: 100,
+                inventory: ["ID Badge"] 
+            },
             enemies: {
-                droid: { name: "Maintenance Droid", hp: 35, alive: true, dmg: 8 },
-                alien: { name: "Alien Stalker", hp: 45, alive: true, dmg: 12 }
+                droid: { name: "Maintenance Droid", hp: 35, alive: true, dmg: 8, expReward: 40 },
+                alien: { name: "Alien Stalker", hp: 45, alive: true, dmg: 12, expReward: 60 }
             },
             inCombat: false
         };
@@ -209,6 +221,10 @@
 
         function updateUI() {
             document.getElementById("player-hp").innerText = gameState.player.hp;
+            document.getElementById("player-max-hp").innerText = gameState.player.maxHp;
+            document.getElementById("player-lvl").innerText = gameState.player.level;
+            document.getElementById("player-exp").innerText = gameState.player.exp;
+            document.getElementById("player-next-exp").innerText = gameState.player.nextLevelExp;
             document.getElementById("player-inv").innerText = gameState.player.inventory.join(", ");
             document.getElementById("droid-hp").innerText = gameState.enemies.droid.hp;
             document.getElementById("alien-hp").innerText = gameState.enemies.alien.hp;
@@ -273,6 +289,24 @@
             }
         }
 
+        function gainExp(amount) {
+            let logAddon = ` Gained ${amount} EXP.`;
+            gameState.player.exp += amount;
+
+            // Level up logic
+            if (gameState.player.exp >= gameState.player.nextLevelExp) {
+                gameState.player.exp -= gameState.player.nextLevelExp;
+                gameState.player.level += 1;
+                
+                // Increase stats upon leveling up
+                gameState.player.maxHp += 20; 
+                gameState.player.hp = gameState.player.maxHp; // Heal to full max health
+                
+                logAddon += `<br><span style='color: #00ff66; font-weight: bold;'>🎉 LEVEL UP! You reached Level ${gameState.player.level}! Max HP increased to ${gameState.player.maxHp}!</span>`;
+            }
+            return logAddon;
+        }
+
         function executeTurn(targetKey) {
             let log = "";
             let damage = 6;
@@ -288,9 +322,12 @@
             if (target.hp <= 0) {
                 target.hp = 0;
                 target.alive = false;
-                log += `✨ <strong>The ${target.name} is destroyed!</strong><br>`;
+                log += `✨ <strong>The ${target.name} is destroyed!</strong>`;
+                
+                // Process EXP rewards
+                log += gainExp(target.expReward) + "<br>";
+                
                 document.getElementById(`card-${targetKey}`).style.opacity = "0.2";
-                // Change the ASCII art to an explosion/wreckage look!
                 document.getElementById(`sprite-${targetKey}`).innerText = "\n  *CRASH* \n  x__x \n";
             }
 
@@ -314,7 +351,7 @@
 
         function useItem(itemName) {
             if (itemName === "Bio-Gel") {
-                gameState.player.hp = Math.min(gameState.player.hp + 25, 100);
+                gameState.player.hp = Math.min(gameState.player.hp + 25, gameState.player.maxHp);
                 const index = gameState.player.inventory.indexOf("Bio-Gel");
                 if (index > -1) gameState.player.inventory.splice(index, 1);
                 
