@@ -39,7 +39,6 @@
             padding: 10px;
             width: 45%;
         }
-        /* Crucial for ASCII art: preserves spaces and line breaks */
         pre {
             font-family: 'Courier New', Courier, monospace;
             font-size: 0.85rem;
@@ -193,6 +192,37 @@
                 choices: [
                     { text: "Raise your hands and prepare for combat!", action: () => startCombat() }
                 ]
+            },
+            crash_sequence: {
+                text: "Suddenly, the floor buckles violently! A deafening roar echoes through the hull as the ship's automated pilot loses control. The hull breaks apart, and everything goes black as you plunge through an unknown atmosphere...",
+                choices: [
+                    { text: "Wake up in the wreckage...", nextScene: "crash_site" }
+                ]
+            },
+            crash_site: {
+                text: "You groan, pushing a piece of twisted hull plating off your chest. The ship has completely torn in half, crash-landing in an eerie graveyard of ancient mechanical trees under an amber sky. Sparks crackle from the broken reactor core nearby.",
+                choices: [
+                    { text: "Salvage what's left of the cockpit", nextScene: "salvage_cockpit" },
+                    { text: "Step out into the alien wasteland", nextScene: "alien_wasteland" }
+                ]
+            },
+            salvage_cockpit: {
+                text: "You rifle through the smashed consoles. Under a cracked monitor, you find a Heavy Plasma Torch! Sadly, a burst of stray electrical feedback zaps your hand.",
+                onEnter: () => {
+                    if (!gameState.player.inventory.includes("Plasma Torch")) {
+                        gameState.player.inventory.push("Plasma Torch");
+                    }
+                    gameState.player.hp = Math.max(1, gameState.player.hp - 10); // Take minor environmental damage
+                },
+                choices: [
+                    { text: "Nursing your hand, step outside into the open air", nextScene: "alien_wasteland" }
+                ]
+            },
+            alien_wasteland: {
+                text: "The air smells faintly of oil and copper. In the distance, dark, metallic structures loom over the horizon. You have survived the crash, but your journey into the unknown has just begun...",
+                choices: [
+                    { text: "To be continued... (Restart Simulation)", action: () => location.reload() }
+                ]
             }
         };
 
@@ -255,12 +285,8 @@
 
             if (!gameState.enemies.droid.alive && !gameState.enemies.alien.alive) {
                 document.getElementById("enemy-panel").style.display = "none";
-                document.getElementById("story-box").innerText = "Silence falls over the corridor. The monsters have been cleared. You survived the initial outbreak!";
-                const winBtn = document.createElement("button");
-                winBtn.className = "btn";
-                winBtn.innerText = "Proceed Deeper (Victory!)";
-                winBtn.onclick = () => location.reload();
-                choicesBox.appendChild(winBtn);
+                // Transitioning into the crash instead of just saying victory!
+                renderScene("crash_sequence");
                 return;
             }
 
@@ -293,14 +319,11 @@
             let logAddon = ` Gained ${amount} EXP.`;
             gameState.player.exp += amount;
 
-            // Level up logic
             if (gameState.player.exp >= gameState.player.nextLevelExp) {
                 gameState.player.exp -= gameState.player.nextLevelExp;
                 gameState.player.level += 1;
-                
-                // Increase stats upon leveling up
                 gameState.player.maxHp += 20; 
-                gameState.player.hp = gameState.player.maxHp; // Heal to full max health
+                gameState.player.hp = gameState.player.maxHp; 
                 
                 logAddon += `<br><span style='color: #00ff66; font-weight: bold;'>🎉 LEVEL UP! You reached Level ${gameState.player.level}! Max HP increased to ${gameState.player.maxHp}!</span>`;
             }
@@ -323,8 +346,6 @@
                 target.hp = 0;
                 target.alive = false;
                 log += `✨ <strong>The ${target.name} is destroyed!</strong>`;
-                
-                // Process EXP rewards
                 log += gainExp(target.expReward) + "<br>";
                 
                 document.getElementById(`card-${targetKey}`).style.opacity = "0.2";
