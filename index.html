@@ -635,6 +635,10 @@ Your Balance: 🪙${gameState.player.credits} Credits
                 document.getElementById(`sprite-${targetKey}`).innerText = "\n  *DEFEATED* \n  x__x \n";
             }
 
+            // Update enemy HP views on screen immediately after taking damage
+            document.getElementById("hp-enemy1").innerText = gameState.enemies.enemy1.hp;
+            document.getElementById("hp-enemy2").innerText = gameState.enemies.enemy2.hp;
+
             log += "<span style='color: #ff3333;'>";
             ['enemy1', 'enemy2'].forEach(key => {
                 let enemy = gameState.enemies[key];
