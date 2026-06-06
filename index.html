@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Space Salvager - ASCII Expanded Edition</title>
+    <title>Space Salvager - Deep Void Infinite Edition</title>
     <style>
         body {
             background-color: #121214;
             color: #00ff66;
             font-family: 'Courier New', Courier, monospace;
             padding: 20px;
-            max-width: 700px;
+            max-width: 750px;
             margin: 0 auto;
         }
         .stats-panel {
@@ -63,7 +63,7 @@
             font-size: 1.05rem;
             line-height: 1.6;
             margin-bottom: 25px;
-            min-height: 120px;
+            min-height: 140px;
             white-space: pre-line;
         }
         .combat-log {
@@ -100,6 +100,14 @@
             background: #ff3333;
             color: #121214;
         }
+        .btn-magic {
+            border-color: #3399ff;
+            color: #3399ff;
+        }
+        .btn-magic:hover {
+            background: #3399ff;
+            color: #121214;
+        }
     </style>
 </head>
 <body>
@@ -111,11 +119,12 @@
 /|\  [<span id="player-weapon">Unarmed</span>]
 / \  
 </pre>
-            <strong>HP:</strong> <span id="player-hp">80</span>/<span id="player-max-hp">100</span><br>
+            <strong>HP:</strong> <span id="player-hp">100</span>/<span id="player-max-hp">100</span><br>
+            <strong>MP:</strong> <span id="player-mp">20</span>/<span id="player-max-mp">20</span><br>
             <strong>CREDITS:</strong> 🪙<span id="player-credits">0</span>
         </div>
         <div class="stat-col" style="text-align: center;">
-            <strong>LVL:</strong> <span id="player-lvl">1</span><br>
+            <strong>LVL:</strong> <span id="player-lvl">1</span> (<span id="loop-count">Loop 1</span>)<br>
             <strong>EXP:</strong> <span id="player-exp">0</span> / <span id="player-next-exp">100</span><br>
             <span id="stat-points-alert" style="color: #ffcc00; font-weight: bold; display: none;">⚠️ Stat Points Pending!</span>
         </div>
@@ -131,23 +140,16 @@
         
         <div class="enemy-container">
             <div class="enemy-box" id="card-enemy1">
-                <div id="name-enemy1">🤖 Droid</div>
-                <pre id="sprite-enemy1">
-  [o_o]  
-  /[_]\=🔧
-  _|_|_ 
-                </pre>
-                <div><strong>HP:</strong> <span id="hp-enemy1">35</span></div>
+                <div id="name-enemy1">🤖 Enemy 1</div>
+                <pre id="sprite-enemy1">...</pre>
+                <div><strong>HP:</strong> <span id="hp-enemy1">0</span></div>
             </div>
 
             <div class="enemy-box" id="card-enemy2">
-                <div id="name-enemy2">👽 Alien</div>
-                <pre id="sprite-enemy2">
- _/\_/\_ 
-( o.o )  
- > ^ <  
-                </pre>
-                <div><strong>HP:</strong> <span id="hp-enemy2">45</span></div>
+                <div id="name-enemy2">👽 Enemy 2</div>
+                <pre id="sprite-enemy2">...</pre>
+                <!-- FIXED BUG BELOW: Changed from hp-enemy1 to hp-enemy2 -->
+                <div><strong>HP:</strong> <span id="hp-enemy2">0</span></div>
             </div>
         </div>
     </div>
@@ -162,24 +164,31 @@
     <script>
         let gameState = {
             player: { 
-                hp: 80, 
+                hp: 100, 
                 maxHp: 100,
+                mp: 20,
+                maxMp: 20,
                 level: 1,
                 exp: 0,
                 nextLevelExp: 100,
-                credits: 0,
+                credits: 20,
                 str: 10,  
                 def: 5,   
                 statPoints: 0,
                 inventory: ["ID Badge"],
-                currentWeapon: "Fists"
+                currentWeapon: "Fists",
+                weaponBonus: 0
             },
             enemies: {
                 enemy1: { key: 'enemy1', name: "", hp: 0, maxHp: 0, alive: false, dmg: 0, expReward: 0, creditReward: 0, defaultSprite: "" },
                 enemy2: { key: 'enemy2', name: "", hp: 0, maxHp: 0, alive: false, dmg: 0, expReward: 0, creditReward: 0, defaultSprite: "" }
             },
             inCombat: false,
-            combatSuccessScene: "crash_sequence",
+            combatSuccessScene: "hub",
+            loop: 1,
+            currentSector: 1,
+            sectorFloor: 0,
+            maxFloors: 5,
             storyFlags: {
                 hasReactorKey: false,
                 starshipRepaired: false,
@@ -187,17 +196,39 @@
             }
         };
 
-        const enemyTemplates = {
-            droid: { name: "Corrupted Droid", hp: 35, dmg: 8, expReward: 45, creditReward: 15, sprite: "  [o_o]  \n  /[_]\\=🔧\n  _|_|_ " },
-            alien: { name: "Alien Stalker", hp: 45, dmg: 12, expReward: 65, creditReward: 25, sprite: " _/\\_/\\_ \n( o.o )  \n > ^ <  " },
-            leech: { name: "Bio-Leech Swarm", hp: 25, dmg: 6, expReward: 35, creditReward: 12, sprite: " ~ ~ ~ \n  ~ ~ ~ \n ~ ~ ~ " },
-            pirate: { name: "Scav Raider", hp: 60, dmg: 16, expReward: 90, creditReward: 50, sprite: "  p_o  \n /[_]\\=🔫\n  _ \\  " },
-            sentinel: { name: "Precursor Drone", hp: 80, dmg: 20, expReward: 120, creditReward: 75, sprite: " 🧬==🧬 \n [⚡_⚡] \n  /  \\  " },
-            behemoth: { name: "The Cyber-Amalgam", hp: 150, dmg: 28, expReward: 250, creditReward: 200, sprite: " /\\_🤖_/\\\n[x_o==o_x]\n /_/_|\\_\\ " }
+        const weaponsData = {
+            "Fists": { name: "Fists", dmg: 5, cost: 0 },
+            "Scalpel": { name: "Scalpel", dmg: 14, cost: 0 },
+            "Plasma Torch": { name: "Plasma Torch", dmg: 32, cost: 75 },
+            "Laser Sabre": { name: "Laser Sabre", dmg: 65, cost: 180 },
+            "Void Disrupter": { name: "Void Disrupter", dmg: 120, cost: 400 }
+        };
+
+        const enemyPool = {
+            1: [ // Sector 1
+                { name: "Corrupted Droid", hp: 35, dmg: 8, exp: 35, credits: 15, sprite: "  [o_o]  \n  /[_]\\=🔧\n  _|_|_ " },
+                { name: "Alien Stalker", hp: 45, dmg: 12, exp: 45, credits: 20, sprite: " _/\\_/\\_ \n( o.o )  \n > ^ <  " },
+                { name: "Bio-Leech Swarm", hp: 25, dmg: 6, exp: 25, credits: 12, sprite: " ~ ~ ~ \n  ~ ~ ~ \n ~ ~ ~ " }
+            ],
+            2: [ // Sector 2
+                { name: "Scav Raider", hp: 70, dmg: 18, exp: 65, credits: 35, sprite: "  p_o  \n /[_]\\=🔫\n  _ \\  " },
+                { name: "Heavy Sentry Mech", hp: 95, dmg: 22, exp: 80, credits: 45, sprite: "  /███\\  \n ⚙️[O_O]⚙️ \n  /_|_\\  " },
+                { name: "Spliced Hound", hp: 55, dmg: 16, exp: 50, credits: 25, sprite: " ^..^_____/\n (oo)     \\\n  W--W----W" }
+            ],
+            3: [ // Sector 3
+                { name: "Precursor Drone", hp: 130, dmg: 32, exp: 120, credits: 60, sprite: " 🧬==🧬 \n [⚡_⚡] \n  /  \\  " },
+                { name: "Rift Horrorglow", hp: 160, dmg: 38, exp: 150, credits: 80, sprite: " 🌀o_o🌀 \n <(▓▓)> \n  /    \\ " },
+                { name: "Void Executioner", hp: 220, dmg: 48, exp: 250, credits: 150, sprite: "  /☠️\\  \n ░░[█]░░=⚔️\n  /_ _\\ " }
+            ]
+        };
+
+        const bossPool = {
+            1: { name: "The Root-Matrix Overseer", hp: 120, dmg: 20, exp: 150, credits: 100, sprite: "  /🌳🌳\\\n [👁️__👁️]\n/_/_|_\\_\\" },
+            2: { name: "Core Meltdown Behemoth", hp: 250, dmg: 36, exp: 300, credits: 200, sprite: " /\\_🤖_/\\\n[x_o==o_x]\n /_/_|\\_\\ " },
+            3: { name: "The Cyber-Amalgam World-Eater", hp: 600, dmg: 70, exp: 1000, credits: 500, sprite: " 🌌==[☠️]==🌌\n[█████████]\n 🌀/_/|\\_\\🌀" }
         };
 
         const scenes = {
-            // --- ACT I: THE ESCAPE & CRASH ---
             med_bay: {
                 text: "You awaken on a cold medical bed, your head pounding. Red emergency lights pulse against the metal walls. The room is trashed. The heavy steel door is slightly ajar.",
                 choices: [
@@ -210,7 +241,7 @@
                 onEnter: () => {
                     if (!gameState.player.inventory.includes("Scalpel")) {
                         gameState.player.inventory.push("Scalpel", "Bio-Gel");
-                        gameState.player.currentWeapon = "Scalpel";
+                        autoEquipBestWeapon();
                     }
                 },
                 choices: [
@@ -220,237 +251,236 @@
             corridor_intro: {
                 text: "The main hallway is a zone of total chaos. Sparks shower from exposed wiring. A corrupted Maintenance Droid drags a heavy wrench nearby, while a sleek Alien Stalker clings to the ceiling above. They block your path!",
                 choices: [
-                    { text: "⚔️ Raise your hands and prepare for combat!", action: () => setupCombat("droid", "alien", "crash_sequence") }
+                    { text: "⚔️ Raise your hands and prepare for combat!", action: () => setupFixedIntroFight() }
                 ]
             },
             crash_sequence: {
                 text: "Suddenly, the floor buckles violently! A deafening roar echoes through the hull as the ship's automated pilot loses control. The hull breaks apart, and everything goes black as you plunge through an unknown atmosphere...",
                 choices: [
-                    { text: "🌀 Wake up in the wreckage...", nextScene: "crash_site" }
+                    { text: "🌀 Wake up in the wreckage...", nextScene: "hub" }
                 ]
             },
 
-            // --- ACT II: THE CRASH SITE (GROUND HUB) ---
-            crash_site: {
-                text: "You groan, pushing a piece of twisted hull plating off your chest. The ship has completely torn in half, crash-landing in an eerie graveyard of ancient mechanical trees.\n\nYou manage to drag the functional remaining survival module into a temporary Base Camp.",
-                choices: [
-                    { text: "⛺ Establish your Base Camp Hub", nextScene: "hub" }
-                ]
-            },
+            // MAIN PROGRESSION HUB (GROUND & ORBIT SATELLITES)
             hub: {
-                text: () => `=== BASE CAMP HUB ===
-Safe within the powered survival module, you can tend to your wounds, upgrade your stats, buy superior hardware, or venture out into hostile sectors.
-
-🚀 Starship Repair Status: ${gameState.storyFlags.starshipRepaired ? "READY FOR ORBIT" : "MISSING HYPERDRIVE CORE"}`,
-                onEnter: () => { gameState.player.hp = gameState.player.maxHp; },
+                text: () => {
+                    if (gameState.currentSector < 3) {
+                        return `=== BASE CAMP HUB (Loop: ${gameState.loop}) ===\nYou are hunkered down in the functional remains of the crash wreckage. To escape this planet, you must assemble resources from local sectors.\n\n🛠️ Engine Progress: ${gameState.storyFlags.starshipRepaired ? "READY FOR LIFT-OFF" : "MISSING REGULATOR CORES (" + (gameState.storyFlags.hasReactorKey ? "1/2" : "0/2") + ")"}`;
+                    } else {
+                        return `=== STARSHIP DEFIANT: COMMAND HUB (Loop: ${gameState.loop}) ===\nYou have successfully broken atmosphere and docked with the orbiting cruiser. Ahead lies the expanding cosmic breach.\n\n🔮 Quantum Gate Alignment: ${gameState.storyFlags.artifactsFound} / 2 Artifacts Calibrated`;
+                    }
+                },
+                onEnter: () => { 
+                    gameState.player.hp = gameState.player.maxHp; 
+                    gameState.player.mp = gameState.player.maxMp; 
+                },
                 choices: [
-                    { text: "🏋️ Level Up / Upgrade Attributes", nextScene: "hub_stats" },
-                    { text: "🛒 Access Automated Replicator (Shop)", nextScene: "hub_shop" },
-                    { text: "🌲 Sector 1: Infested Quarantine Woods", nextScene: "mission_quarantine" },
-                    { text: "⚡ Sector 2: Broken Reactor Core", action: () => handleReactorCheck() },
-                    { text: "🌌 Launch Starship into Orbit", action: () => handleOrbitCheck() }
+                    { text: "🏋️ Attribute Training Center", nextScene: "hub_stats" },
+                    { text: "🛒 Access Replicator Printer (Shop)", nextScene: "hub_shop" },
+                    { text: "🚀 Deploy Expedition Mission Vector", action: () => openExpeditionMenu() }
                 ]
             },
+
             hub_stats: {
-                text: () => `=== ATTRIBUTE TRAINING ===
-Available Stat Points: ${gameState.player.statPoints}
-
-[STR] current: ${gameState.player.str} (Increases physical attack scaling)
-[DEF] current: ${gameState.player.def} (Flat reduction to incoming enemy damage)`,
+                text: () => `=== ATTRIBUTE TRAINING ===\nAvailable Stat Points: ${gameState.player.statPoints}\n\n[STR] current: ${gameState.player.str} (Increases strike scaling formulas)\n[DEF] current: ${gameState.player.def} (Reduces flat damage metrics)`,
                 choices: [
-                    { text: "💪 Train Strength (+2 Damage, costs 1 Point)", action: () => upgradeStat("str", "hub_stats") },
-                    { text: "🛡️ Train Defense (+1 Block, costs 1 Point)", action: () => upgradeStat("def", "hub_stats") },
-                    { text: "↩️ Return to Hub Main Console", nextScene: "hub" }
+                    { text: "💪 Upgrade Strength (+2 Dmg, costs 1 Pt)", action: () => upgradeStat("str") },
+                    { text: "🛡️ Upgrade Defense (+1 Block, costs 1 Pt)", action: () => upgradeStat("def") },
+                    { text: "↩️ Return to Main Console Hub", nextScene: "hub" }
                 ]
             },
+
             hub_shop: {
-                text: () => `=== REPLICATOR INTERFACE ===
-Your Balance: 🪙${gameState.player.credits} Credits
-
-1. Bio-Gel (Consumable, heals 25 HP) | Cost: 20 Credits
-2. Heavy Plasma Torch (Weapon: +25 Base Dmg) | Cost: 75 Credits`,
+                text: () => `=== INDUSTRIAL REPLICATOR PRINTER ===\nAvailable Balance: 🪙${gameState.player.credits} Credits\n\nSelect a blueprints matrix to assemble structure:`,
                 choices: [
-                    { text: "🧪 Replicate Bio-Gel (20 Credits)", action: () => buyItem("Bio-Gel", 20, false, "hub_shop") },
-                    { text: "🔥 Replicate Heavy Plasma Torch (75 Credits)", action: () => buyItem("Plasma Torch", 75, true, "hub_shop") },
-                    { text: "↩️ Return to Hub Main Console", nextScene: "hub" }
+                    { text: "🧪 Print Bio-Gel Array (20 Credits)", action: () => buyConsumable("Bio-Gel", 20) },
+                    { text: "🩹 Print Scalpel Blade Blueprint (Free Check)", action: () => buyWeapon("Scalpel") },
+                    { text: "🔥 Print Heavy Plasma Torch (75 Credits)", action: () => buyWeapon("Plasma Torch") },
+                    { text: "⚔️ Print High-Freq Laser Sabre (180 Credits)", action: () => buyWeapon("Laser Sabre") },
+                    { text: "🌀 Print Void Disrupter Battery (400 Credits)", action: () => buyWeapon("Void Disrupter") },
+                    { text: "↩️ Return to Main Console Hub", nextScene: "hub" }
                 ]
             },
 
-            // SECTOR 1 & 2 ACTIONS
-            mission_quarantine: {
-                text: "You venture deep into the twisted, overgrown crew quarters. Bio-luminescent spores drift through the air. Suddenly, small skittering sounds amplify from the ventilation grates. Leeching parasites drop down!",
+            // EXPEDITION MODAL SCENES
+            expedition_select: {
+                text: "Select a high-threat coordinate profile to drop into. Deep extraction generates multi-tier layout floors with a structural Sector Boss guarding the payload at the final coordinate floor.",
+                choices: [] // Generated dynamically
+            },
+
+            floor_clear_intermission: {
+                text: () => `=== SEGMENT CONCLUDED ===\nFloor ${gameState.sectorFloor} of ${gameState.maxFloors} successfully secured.\nYour thermal logs register shifting energies deeper within. Do you push forward or execute a tactical fallback retreat to basecamp?`,
                 choices: [
-                    { text: "⚔️ Fight off the parasites", action: () => setupCombat("leech", "leech", "clear_quarantine") }
+                    { text: "⚡ Descend to next extraction grid floor", action: () => executeNextFloor() },
+                    { text: "↩️ Evac to Hub (Keep credits, resets sector progression)", nextScene: "hub" }
                 ]
             },
-            clear_quarantine: {
-                text: "You crush the remaining bio-leeches. Searching a pristine locker nearby, you discover an old rusted 'Reactor Security Override Key' and clean credits!",
+
+            sector_complete_scene: {
+                text: () => `=== TARGET SECTOR ANNIHILATED ===\nThe sector boss structure has collapsed. You scan the debris field and harvest critical progression artifacts!`,
                 onEnter: () => {
-                    gameState.player.credits += 40;
-                    gameState.storyFlags.hasReactorKey = true;
+                    if (gameState.currentSector === 1 && !gameState.storyFlags.hasReactorKey) {
+                        gameState.storyFlags.hasReactorKey = true;
+                    } else if (gameState.currentSector === 2 && !gameState.storyFlags.starshipRepaired) {
+                        gameState.storyFlags.starshipRepaired = true;
+                        gameState.currentSector = 3; 
+                    } else if (gameState.currentSector === 3) {
+                        gameState.storyFlags.artifactsFound++;
+                    }
                 },
                 choices: [
-                    { text: "↩️ Fall back safely to Base Camp Hub", nextScene: "hub" }
-                ]
-            },
-            mission_reactor_locked: {
-                text: "🔒 ACCESS DENIED. The heavy blast doors leading to the Reactor Core require a 'Reactor Keycard'. Go clear Sector 1 (Quarantine Woods) first.",
-                choices: [
-                    { text: "↩️ Return to Base Camp Hub", nextScene: "hub" }
-                ]
-            },
-            mission_reactor_run: {
-                text: "You swipe the security bypass card. The massive heavy shield doors open. Lurking inside the automated core room is a dangerous Scav Raider attempting to steal parts!",
-                choices: [
-                    { text: "⚔️ Attack the Raider", action: () => setupCombat("pirate", "droid", "clear_reactor") }
-                ]
-            },
-            clear_reactor: {
-                text: "The Raider collapses. Behind their platform, you disconnect the pristine, glowing Hyperdrive Core! Your ship can fly again.",
-                onEnter: () => {
-                    gameState.storyFlags.starshipRepaired = true;
-                    gameState.player.credits += 60;
-                },
-                choices: [
-                    { text: "↩️ Return to Base Camp Hub with the Core", nextScene: "hub" }
-                ]
-            },
-            orbit_failed: {
-                text: "❌ IGNITION CRITICAL. The sub-light engines remain dead. You cannot break orbit without recovering the Hyperdrive Core from Sector 2 (Broken Reactor).",
-                choices: [
-                    { text: "↩️ Return to Base Camp Hub", nextScene: "hub" }
-                ]
-            },
-
-            // --- ACT III: DEEP SPACE EXPANSION (NEW ORBITAL HUB) ---
-            orbit_welcome: {
-                text: "The engines roar to life! The survival module transforms into an atmospheric vessel, rocketing into the dark void. You dock with the massive derelict flagship orbiting the planet: The Starship Defiant.\n\nYou establish a new advanced commands terminal.",
-                choices: [
-                    { text: "🛰️ Enter Starship Command Hub", nextScene: "orbit_hub" }
-                ]
-            },
-            orbit_hub: {
-                text: () => `=== STARSHIP DEFIANT ORBITAL HUB ===
-The view screen displays a massive deep-space rift. To pass through it, you require 2 Precursor Quantum Artifacts to calibrate your navigation shields.
-
-🔮 Precursor Artifacts Found: ${gameState.storyFlags.artifactsFound} / 2`,
-                onEnter: () => { gameState.player.hp = gameState.player.maxHp; }, 
-                choices: [
-                    { text: "🏋️ Level Up / Upgrade Attributes", nextScene: "hub_stats_orbit" },
-                    { text: "🛰️ Access High-Tier Armory Replicator", nextScene: "orbit_shop" },
-                    { text: "☄️ Drop Pod: Asteroid Belt Mining Base", nextScene: "mission_asteroid" },
-                    { text: "🪐 Drop Pod: Sunken Precursor Temple", nextScene: "mission_temple" },
-                    { text: "🌀 Enter the Cosmic Rift (Final Fight)", action: () => handleRiftCheck() }
-                ]
-            },
-            hub_stats_orbit: {
-                text: () => `=== ORBITAL ATTRIBUTE TRAINING ===\nAvailable Stat Points: ${gameState.player.statPoints}`,
-                choices: [
-                    { text: "💪 Train Strength (+2 Damage)", action: () => upgradeStat("str", "hub_stats_orbit") },
-                    { text: "🛡️ Train Defense (+1 Block)", action: () => upgradeStat("def", "hub_stats_orbit") },
-                    { text: "↩️ Return to Orbit Control Room", nextScene: "orbit_hub" }
-                ]
-            },
-            orbit_shop: {
-                text: () => `=== ARMORY ARMAMENT PRINTER ===
-Your Balance: 🪙${gameState.player.credits} Credits
-
-1. High-Frequency Laser Sabre (Weapon: +45 Base Dmg) | Cost: 150 Credits`,
-                choices: [
-                    { text: "⚔️ Print Laser Sabre (150 Credits)", action: () => buyItem("Laser Sabre", 150, true, "orbit_shop") },
-                    { text: "↩️ Return to Orbit Control Room", nextScene: "orbit_hub" }
-                ]
-            },
-
-            // SECTOR 3: ASTEROID MINING BASE
-            mission_asteroid: {
-                text: "Your drop pod lands inside a zero-gravity asteroid hangar. The automated defensive framework has gone completely rogue! Precursor Drones fire energy bolts at you.",
-                choices: [
-                    { text: "⚔️ Engage Defense Drones", action: () => setupCombat("sentinel", "droid", "clear_asteroid") }
-                ]
-            },
-            clear_asteroid: {
-                text: "The drones explode in static bursts. Floating inside a secure vault container, you secure the 1st Quantum Artifact!",
-                onEnter: () => {
-                    if (gameState.storyFlags.artifactsFound < 1) gameState.storyFlags.artifactsFound = 1;
-                    gameState.player.credits += 100;
-                },
-                choices: [
-                    { text: "↩️ Fly Pod back to Starship Defiant", nextScene: "orbit_hub" }
-                ]
-            },
-
-            // SECTOR 4: PRECURSOR TEMPLE
-            mission_temple: {
-                text: "You step out into a crumbling, pressurized temple submerged in toxic methane oceans. Ancient sentinels emerge from liquid-metal chambers to purify the intruder!",
-                choices: [
-                    { text: "⚔️ Fight Temple Sentinels", action: () => setupCombat("sentinel", "sentinel", "clear_temple") }
-                ]
-            },
-            clear_temple: {
-                text: "The mechanical bodies melt away. Resting on an obsidian altar, you break free the 2nd Quantum Artifact!",
-                onEnter: () => {
-                    if (gameState.storyFlags.artifactsFound < 2) gameState.storyFlags.artifactsFound = 2;
-                    gameState.player.credits += 100;
-                },
-                choices: [
-                    { text: "↩️ Fly Pod back to Starship Defiant", nextScene: "orbit_hub" }
-                ]
-            },
-
-            final_boss_locked: {
-                text: "⚠️ WARNING. Your ship's deflector shields cannot survive the spatial gravity of the rift without both Quantum Artifacts. Explore the Asteroid Belt and the Sunken Temple first.",
-                choices: [
-                    { text: "↩️ Return to Orbit Control Room", nextScene: "orbit_hub" }
-                ]
-            },
-            final_boss_intro: {
-                text: "The artifacts hum with energy, opening a safe localized corridor inside the roaring cosmic tear. But standing at the epicenter of the rift is the absolute core consciousness—the monstrous Cyber-Amalgam Behemoth! Defeat it to win your freedom!",
-                choices: [
-                    { text: "🚨 ENGAGE FINAL BOSS PROTOCOL 🚨", action: () => setupCombat("behemoth", "sentinel", "victory_ending") }
-                ]
-            },
-
-            // --- GAME COMPLETE ENDING ---
-            victory_ending: {
-                text: "With a blind light explosion, the Cyber-Amalgam shatters. The rift completely stabilizes, establishing an uninhibited slipspace pathway straight to civilized planetary space.\n\n🎉 CONGRATULATIONS! YOU HAVE COMPLETED SPACE SALVAGER EX! 🎉\nYou mastered attributes, built a space-faring engine loop, and successfully escaped the system!",
-                choices: [
-                    { text: "🔄 Play Again (Restart Simulation)", action: () => location.reload() }
+                    { text: "↩️ Return Victorious to Hub Terminal", action: () => checkGameLoopProgression() }
                 ]
             }
         };
 
-        // --- EXPLICIT CONDITIONAL ROUTERS ---
+        // --- AUTOMATIC WEAPON EVALUATION ENGINE ---
+        function autoEquipBestWeapon() {
+            let bestWeapon = "Fists";
+            let maxDmg = 0;
 
-        function handleReactorCheck() {
-            if (gameState.storyFlags.hasReactorKey) {
-                renderScene("mission_reactor_run");
+            gameState.player.inventory.forEach(item => {
+                if (weaponsData[item]) {
+                    if (weaponsData[item].dmg > maxDmg) {
+                        maxDmg = weaponsData[item].dmg;
+                        bestWeapon = item;
+                    }
+                }
+            });
+
+            gameState.player.currentWeapon = bestWeapon;
+        }
+
+        // --- PROCEDURAL GENERATOR LOOPS ---
+
+        function openExpeditionMenu() {
+            let scene = scenes.expedition_select;
+            scene.choices = [];
+
+            if (gameState.currentSector === 1) {
+                scene.choices.push({ text: "🌲 Enter Sector 1: Infested Quarantine Woods (5 Floors)", action: () => initiateSectorRun(1, 5) });
+            }
+            if (gameState.currentSector === 2 || gameState.storyFlags.hasReactorKey) {
+                scene.choices.push({ text: "⚡ Enter Sector 2: Broken Reactor Matrix (5 Floors)", action: () => initiateSectorRun(2, 5) });
+            }
+            if (gameState.currentSector === 3) {
+                scene.choices.push({ text: "☄️ Drop Pod: Outer Asteroid Hangar Belt (5 Floors)", action: () => initiateSectorRun(3, 5) });
+                scene.choices.push({ text: "🪐 Drop Pod: Sunken Void temple Grid (5 Floors)", action: () => initiateSectorRun(3, 5) });
+            }
+
+            scene.choices.push({ text: "↩️ Abort Deployment Protocol", nextScene: "hub" });
+            renderScene("expedition_select");
+        }
+
+        function initiateSectorRun(sectorId, totalFloors) {
+            gameState.currentSector = sectorId;
+            gameState.sectorFloor = 1;
+            gameState.maxFloors = totalFloors;
+            generateProceduralFloor();
+        }
+
+        function generateProceduralFloor() {
+            gameState.inCombat = true;
+            gameState.combatSuccessScene = "floor_clear_intermission";
+
+            if (gameState.sectorFloor >= gameState.maxFloors) {
+                let bossData = bossPool[gameState.currentSector];
+                let loopMultiplier = 1 + (gameState.loop - 1) * 0.5;
+
+                gameState.enemies.enemy1 = {
+                    key: 'enemy1',
+                    name: `[BOSS] ${bossData.name}`,
+                    hp: Math.floor(bossData.hp * loopMultiplier),
+                    maxHp: Math.floor(bossData.hp * loopMultiplier),
+                    alive: true,
+                    dmg: Math.floor(bossData.dmg * loopMultiplier),
+                    expReward: bossData.exp * gameState.loop,
+                    creditReward: bossData.credits * gameState.loop,
+                    defaultSprite: bossData.sprite
+                };
+                gameState.enemies.enemy2 = { key: 'enemy2', name: "", hp: 0, maxHp: 0, alive: false, dmg: 0, expReward: 0, creditReward: 0, defaultSprite: "" };
+                gameState.combatSuccessScene = "sector_complete_scene";
+                
+                triggerCombatRender("[CRITICAL BOSS SIGNATURE DETECTED]");
             } else {
-                renderScene("mission_reactor_locked");
+                let pool = enemyPool[gameState.currentSector];
+                let loopMultiplier = 1 + (gameState.loop - 1) * 0.4;
+                let floorMultiplier = 1 + (gameState.sectorFloor - 1) * 0.15;
+
+                let e1Data = pool[Math.floor(Math.random() * pool.length)];
+                let e2Data = pool[Math.floor(Math.random() * pool.length)];
+
+                gameState.enemies.enemy1 = {
+                    key: 'enemy1', name: `${e1Data.name} v${gameState.sectorFloor}`,
+                    hp: Math.floor(e1Data.hp * loopMultiplier * floorMultiplier),
+                    maxHp: Math.floor(e1Data.hp * loopMultiplier * floorMultiplier),
+                    alive: true, dmg: Math.floor(e1Data.dmg * loopMultiplier * floorMultiplier),
+                    expReward: Math.floor(e1Data.exp * floorMultiplier), creditReward: Math.floor(e1Data.credits * floorMultiplier),
+                    defaultSprite: e1Data.sprite
+                };
+
+                gameState.enemies.enemy2 = {
+                    key: 'enemy2', name: `${e2Data.name} v${gameState.sectorFloor}`,
+                    hp: Math.floor(e2Data.hp * loopMultiplier * floorMultiplier),
+                    maxHp: Math.floor(e2Data.hp * loopMultiplier * floorMultiplier),
+                    alive: true, dmg: Math.floor(e2Data.dmg * loopMultiplier * floorMultiplier),
+                    expReward: Math.floor(e2Data.exp * floorMultiplier), creditReward: Math.floor(e2Data.credits * floorMultiplier),
+                    defaultSprite: e2Data.sprite
+                };
+
+                triggerCombatRender(`[GRID EXTRACTION: FLOOR ${gameState.sectorFloor}/${gameState.maxFloors}]`);
             }
         }
 
-        function handleOrbitCheck() {
-            if (gameState.storyFlags.starshipRepaired) {
-                renderScene("orbit_welcome");
-            } else {
-                renderScene("orbit_failed");
-            }
+        function executeNextFloor() {
+            gameState.sectorFloor++;
+            generateProceduralFloor();
         }
 
-        function handleRiftCheck() {
+        function checkGameLoopProgression() {
             if (gameState.storyFlags.artifactsFound >= 2) {
-                renderScene("final_boss_intro");
-            } else {
-                renderScene("final_boss_locked");
+                gameState.loop++;
+                gameState.storyFlags.artifactsFound = 0;
+                gameState.storyFlags.hasReactorKey = false;
+                gameState.storyFlags.starshipRepaired = false;
+                gameState.currentSector = 1;
+                
+                alert(`🌌 COSMIC RIFT CRACKED!\nYour structural composition shifts as you ascend into Paradox Loop ${gameState.loop}!\nEnemies have evolved with enhanced threat modifiers.`);
             }
+            renderScene("hub");
         }
 
-        // --- CORE GAME ENGINE ---
+        // --- CORE LOGIC ENGINE ---
+
+        function setupFixedIntroFight() {
+            gameState.inCombat = true;
+            gameState.combatSuccessScene = "crash_sequence";
+            let pool = enemyPool[1];
+            gameState.enemies.enemy1 = { key: 'enemy1', name: pool[0].name, hp: pool[0].hp, maxHp: pool[0].hp, alive: true, dmg: pool[0].dmg, expReward: pool[0].exp, creditReward: pool[0].credits, defaultSprite: pool[0].sprite };
+            gameState.enemies.enemy2 = { key: 'enemy2', name: pool[1].name, hp: pool[1].hp, maxHp: pool[1].hp, alive: true, dmg: pool[1].dmg, expReward: pool[1].exp, creditReward: pool[1].credits, defaultSprite: pool[1].sprite };
+            triggerCombatRender("⚠️ HOSTILE ENTRANTS DETECTED");
+        }
+
+        function triggerCombatRender(title) {
+            document.getElementById("combat-title").innerText = title;
+            document.getElementById("name-enemy1").innerText = gameState.enemies.enemy1.name || "N/A";
+            document.getElementById("hp-enemy1").innerText = gameState.enemies.enemy1.hp;
+            document.getElementById("sprite-enemy1").innerText = gameState.enemies.enemy1.defaultSprite || "";
+            document.getElementById("card-enemy1").style.opacity = gameState.enemies.enemy1.alive ? "1" : "0.2";
+
+            document.getElementById("name-enemy2").innerText = gameState.enemies.enemy2.name || "N/A";
+            document.getElementById("hp-enemy2").innerText = gameState.enemies.enemy2.hp;
+            document.getElementById("sprite-enemy2").innerText = gameState.enemies.enemy2.defaultSprite || "";
+            document.getElementById("card-enemy2").style.opacity = gameState.enemies.enemy2.alive ? "1" : "0.2";
+
+            document.getElementById("enemy-panel").style.display = "block";
+            document.getElementById("log-box").style.display = "block";
+            document.getElementById("log-box").innerHTML = "<em>Sensors online. Combat protocols initialized...</em>";
+            generateCombatChoices();
+        }
 
         function renderScene(sceneId) {
             const scene = scenes[sceneId];
-            
             if (scene.onEnter) scene.onEnter();
             updateUI();
 
@@ -479,15 +509,17 @@ Your Balance: 🪙${gameState.player.credits} Credits
         function updateUI() {
             document.getElementById("player-hp").innerText = gameState.player.hp;
             document.getElementById("player-max-hp").innerText = gameState.player.maxHp;
+            document.getElementById("player-mp").innerText = gameState.player.mp;
+            document.getElementById("player-max-mp").innerText = gameState.player.maxMp;
             document.getElementById("player-lvl").innerText = gameState.player.level;
             document.getElementById("player-exp").innerText = gameState.player.exp;
             document.getElementById("player-next-exp").innerText = gameState.player.nextLevelExp;
             document.getElementById("player-credits").innerText = gameState.player.credits;
             document.getElementById("player-inv").innerText = gameState.player.inventory.join(", ");
             document.getElementById("player-weapon").innerText = gameState.player.currentWeapon;
-            
             document.getElementById("stat-str").innerText = gameState.player.str;
             document.getElementById("stat-def").innerText = gameState.player.def;
+            document.getElementById("loop-count").innerText = `Loop ${gameState.loop}`;
 
             if (gameState.player.statPoints > 0 && !gameState.inCombat) {
                 document.getElementById("stat-points-alert").style.display = "inline";
@@ -496,71 +528,36 @@ Your Balance: 🪙${gameState.player.credits} Credits
             }
         }
 
-        function gainExp(amount) {
-            let logAddon = ` Gained ${amount} EXP.`;
-            gameState.player.exp += amount;
-
-            if (gameState.player.exp >= gameState.player.nextLevelExp) {
-                gameState.player.exp -= gameState.player.nextLevelExp;
-                gameState.player.level += 1;
-                gameState.player.maxHp += 15; 
-                gameState.player.hp = gameState.player.maxHp; 
-                gameState.player.statPoints += 1; 
-                
-                logAddon += `<br><span style='color: #00ff66; font-weight: bold;'>🎉 LEVEL UP! You reached Level ${gameState.player.level}! +1 Point gained!</span>`;
-            }
-            return logAddon;
-        }
-
-        function upgradeStat(statKey, returnScene) {
+        function upgradeStat(statKey) {
             if (gameState.player.statPoints > 0) {
                 gameState.player.statPoints--;
                 if (statKey === "str") gameState.player.str += 2;
                 if (statKey === "def") gameState.player.def += 1;
-                renderScene(returnScene);
+                renderScene("hub_stats");
             }
         }
 
-        function buyItem(itemName, cost, isWeapon, returnScene) {
+        function buyConsumable(name, cost) {
             if (gameState.player.credits >= cost) {
-                if (isWeapon && gameState.player.inventory.includes(itemName)) {
-                    alert("Weapon system architecture already printed!");
+                gameState.player.credits -= cost;
+                gameState.player.inventory.push(name);
+                renderScene("hub_shop");
+            } else { alert("Insufficient credits!"); }
+        }
+
+        function buyWeapon(wpnKey) {
+            let data = weaponsData[wpnKey];
+            if (gameState.player.credits >= data.cost) {
+                if (gameState.player.inventory.includes(data.name)) {
+                    alert("Blueprint structure already assembled!");
                     return;
                 }
-                gameState.player.credits -= cost;
-                gameState.player.inventory.push(itemName);
-                if (isWeapon) gameState.player.currentWeapon = itemName;
-                renderScene(returnScene);
-            } else {
-                alert("Insufficient digital credits available!");
-            }
-        }
-
-        function setupCombat(enemyKey1, enemyKey2, successScene) {
-            gameState.inCombat = true;
-            gameState.combatSuccessScene = successScene;
-
-            let e1 = enemyTemplates[enemyKey1];
-            gameState.enemies.enemy1 = { key: 'enemy1', name: e1.name, hp: e1.hp, maxHp: e1.hp, alive: true, dmg: e1.dmg, expReward: e1.expReward, creditReward: e1.creditReward, defaultSprite: e1.sprite };
-            
-            let e2 = enemyTemplates[enemyKey2];
-            gameState.enemies.enemy2 = { key: 'enemy2', name: e2.name, hp: e2.hp, maxHp: e2.hp, alive: true, dmg: e2.dmg, expReward: e2.expReward, creditReward: e2.creditReward, defaultSprite: e2.sprite };
-
-            document.getElementById("name-enemy1").innerText = gameState.enemies.enemy1.name;
-            document.getElementById("hp-enemy1").innerText = gameState.enemies.enemy1.hp;
-            document.getElementById("sprite-enemy1").innerText = gameState.enemies.enemy1.defaultSprite;
-            document.getElementById("card-enemy1").style.opacity = "1";
-
-            document.getElementById("name-enemy2").innerText = gameState.enemies.enemy2.name;
-            document.getElementById("hp-enemy2").innerText = gameState.enemies.enemy2.hp;
-            document.getElementById("sprite-enemy2").innerText = gameState.enemies.enemy2.defaultSprite;
-            document.getElementById("card-enemy2").style.opacity = "1";
-
-            document.getElementById("enemy-panel").style.display = "block";
-            document.getElementById("log-box").style.display = "block";
-            document.getElementById("log-box").innerHTML = "<em>Combat initiated. Fire at will!</em>";
-            
-            generateCombatChoices();
+                gameState.player.credits -= data.cost;
+                gameState.player.inventory.push(data.name);
+                
+                autoEquipBestWeapon(); 
+                renderScene("hub_shop");
+            } else { alert("Insufficient credits!"); }
         }
 
         function generateCombatChoices() {
@@ -568,10 +565,10 @@ Your Balance: 🪙${gameState.player.credits} Credits
             choicesBox.innerHTML = "";
 
             if (gameState.player.hp <= 0) {
-                document.getElementById("story-box").innerText = "🚨 GAME OVER. Your journey ends here among the stars.";
+                document.getElementById("story-box").innerText = "🚨 SIMULATION CRITICAL TERMINATION. System wipe imminent.";
                 const restartBtn = document.createElement("button");
                 restartBtn.className = "btn";
-                restartBtn.innerText = "Restart Simulation";
+                restartBtn.innerText = "Reinitialize Clone Buffer (Restart)";
                 restartBtn.onclick = () => location.reload();
                 choicesBox.appendChild(restartBtn);
                 return;
@@ -587,55 +584,114 @@ Your Balance: 🪙${gameState.player.credits} Credits
             if (gameState.enemies.enemy1.alive) {
                 const btn = document.createElement("button");
                 btn.className = "btn btn-combat";
-                btn.innerText = `💥 Attack ${gameState.enemies.enemy1.name}`;
-                btn.onclick = () => executeTurn("enemy1");
+                btn.innerText = `💥 Discharge weapon at ${gameState.enemies.enemy1.name}`;
+                btn.onclick = () => executeTurn("attack", "enemy1");
                 choicesBox.appendChild(btn);
             }
 
             if (gameState.enemies.enemy2.alive) {
                 const btn = document.createElement("button");
                 btn.className = "btn btn-combat";
-                btn.innerText = `💥 Attack ${gameState.enemies.enemy2.name}`;
-                btn.onclick = () => executeTurn("enemy2");
+                btn.innerText = `💥 Discharge weapon at ${gameState.enemies.enemy2.name}`;
+                btn.onclick = () => executeTurn("attack", "enemy2");
+                choicesBox.appendChild(btn);
+            }
+
+            if (gameState.player.level >= 3) {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-magic";
+                btn.innerText = `🔥 Cast Fire Burst (Costs 8 MP) - Attacks ALL targets`;
+                btn.onclick = () => executeTurn("fire");
+                choicesBox.appendChild(btn);
+            }
+
+            if (gameState.player.level >= 5) {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-magic";
+                btn.innerText = `🩹 Cast Nanite Heal (Costs 12 MP) - Heals +50 HP`;
+                btn.onclick = () => executeTurn("heal");
                 choicesBox.appendChild(btn);
             }
 
             if (gameState.player.inventory.includes("Bio-Gel")) {
                 const btn = document.createElement("button");
                 btn.className = "btn";
-                btn.innerText = "🧪 Consume Bio-Gel (+25 HP)";
+                btn.innerText = "🧪 Route Bio-Gel to Suit Filters (+25 HP)";
                 btn.onclick = () => useItemInCombat();
                 choicesBox.appendChild(btn);
             }
         }
 
-        function executeTurn(targetKey) {
-            let log = "";
-            let baseWeaponDmg = 5;
+        function handleReward(target) {
+            let logSnippet = `✨ <strong>${target.name} neutralized.</strong>`;
+            gameState.player.exp += target.expReward;
+            logSnippet += ` Gained ${target.expReward} EXP.`;
             
-            if (gameState.player.currentWeapon === "Scalpel") baseWeaponDmg = 12;
-            if (gameState.player.currentWeapon === "Plasma Torch") baseWeaponDmg = 25;
-            if (gameState.player.currentWeapon === "Laser Sabre") baseWeaponDmg = 45;
-
-            let totalPlayerDmg = baseWeaponDmg + Math.floor(gameState.player.str / 2);
-
-            let target = gameState.enemies[targetKey];
-            target.hp -= totalPlayerDmg;
-            log += `You strike ${target.name} for ${totalPlayerDmg} damage.<br>`;
-
-            if (target.hp <= 0) {
-                target.hp = 0;
-                target.alive = false;
-                log += `✨ <strong>${target.name} has been destroyed!</strong>`;
-                log += gainExp(target.expReward);
-                gameState.player.credits += target.creditReward;
-                log += ` Gained 🪙${target.creditReward} credits.<br>`;
-                
-                document.getElementById(`card-${targetKey}`).style.opacity = "0.2";
-                document.getElementById(`sprite-${targetKey}`).innerText = "\n  *DEFEATED* \n  x__x \n";
+            if (gameState.player.exp >= gameState.player.nextLevelExp) {
+                gameState.player.exp -= gameState.player.nextLevelExp;
+                gameState.player.level++;
+                gameState.player.maxHp += 20;
+                gameState.player.maxMp += 10; 
+                gameState.player.statPoints += 1;
+                logSnippet += `<br><span style='color:#00ff66;font-weight:bold;'>🎉 RE-CALIBRATION: Level ${gameState.player.level}! Max HP/MP expanded!</span>`;
             }
 
-            // Update enemy HP views on screen immediately after taking damage
+            gameState.player.credits += target.creditReward;
+            logSnippet += ` Secured 🪙${target.creditReward} credits.<br>..`;
+            return logSnippet;
+        }
+
+        function executeTurn(actionType, targetKey = null) {
+            let log = "";
+
+            if (actionType === "attack") {
+                let currentWpn = gameState.player.currentWeapon;
+                let baseWpnDmg = weaponsData[currentWpn] ? weaponsData[currentWpn].dmg : 5;
+                let totalPlayerDmg = baseWpnDmg + Math.floor(gameState.player.str / 2);
+
+                let target = gameState.enemies[targetKey];
+                target.hp -= totalPlayerDmg;
+                log += `You strike ${target.name} for ${totalPlayerDmg} kinetic damage.<br>`;
+
+                if (target.hp <= 0) {
+                    target.hp = 0; target.alive = false;
+                    log += handleReward(target);
+                    document.getElementById(`card-${targetKey}`).style.opacity = "0.2";
+                    document.getElementById(`sprite-${targetKey}`).innerText = "\n  *NEUTRALIZED* \n";
+                }
+            } 
+            else if (actionType === "fire") {
+                if (gameState.player.mp < 8) {
+                    alert("Insufficient MP Matrix energy pools!");
+                    return;
+                }
+                gameState.player.mp -= 8;
+                let fireDmg = 30 + Math.floor(gameState.player.str / 2);
+                log += `🔥 You throw a thermal fire explosion sweeping the chamber for ${fireDmg} damage!<br>`;
+
+                ['enemy1', 'enemy2'].forEach(key => {
+                    let target = gameState.enemies[key];
+                    if (target.alive) {
+                        target.hp -= fireDmg;
+                        if (target.hp <= 0) {
+                            target.hp = 0; target.alive = false;
+                            log += handleReward(target);
+                            document.getElementById(`card-${key}`).style.opacity = "0.2";
+                            document.getElementById(`sprite-${key}`).innerText = "\n  *NEUTRALIZED* \n";
+                        }
+                    }
+                });
+            } 
+            else if (actionType === "heal") {
+                if (gameState.player.mp < 12) {
+                    alert("Insufficient MP Matrix energy pools!");
+                    return;
+                }
+                gameState.player.mp -= 12;
+                gameState.player.hp = Math.min(gameState.player.hp + 50, gameState.player.maxHp);
+                log += `🩹 Balanced Nanite spell casting completed! Repaired +50 Structural Integrity.<br>`;
+            }
+
             document.getElementById("hp-enemy1").innerText = gameState.enemies.enemy1.hp;
             document.getElementById("hp-enemy2").innerText = gameState.enemies.enemy2.hp;
 
@@ -645,13 +701,12 @@ Your Balance: 🪙${gameState.player.credits} Credits
                 if (enemy.alive) {
                     let netEnemyDmg = Math.max(1, enemy.dmg - Math.floor(gameState.player.def / 2));
                     gameState.player.hp -= netEnemyDmg;
-                    log += `• ${enemy.name} strikes back for ${netEnemyDmg} dmg (Blocked ${Math.floor(gameState.player.def / 2)}).<br>`;
+                    log += `• ${enemy.name} counters for ${netEnemyDmg} dmg (Blocked ${Math.floor(gameState.player.def / 2)}).<br>`;
                 }
             });
             log += "</span>";
 
             if (gameState.player.hp <= 0) gameState.player.hp = 0;
-
             document.getElementById("log-box").innerHTML = log;
             updateUI();
             generateCombatChoices();
@@ -662,25 +717,25 @@ Your Balance: 🪙${gameState.player.credits} Credits
             const index = gameState.player.inventory.indexOf("Bio-Gel");
             if (index > -1) gameState.player.inventory.splice(index, 1);
             
-            let log = "You use Bio-Gel and heal (+25 HP).<br>";
+            let log = "Bio-Gel application completed (+25 HP).<br>";
             log += "<span style='color: #ff3333;'>";
             ['enemy1', 'enemy2'].forEach(key => {
                 let enemy = gameState.enemies[key];
                 if (enemy.alive) {
                     let netEnemyDmg = Math.max(1, enemy.dmg - Math.floor(gameState.player.def / 2));
                     gameState.player.hp -= netEnemyDmg;
-                    log += `• ${enemy.name} hits you for ${netEnemyDmg} dmg.<br>`;
+                    log += `• ${enemy.name} impacts hull for ${netEnemyDmg} damage.<br>`;
                 }
             });
             log += "</span>";
 
             if (gameState.player.hp <= 0) gameState.player.hp = 0;
-
             document.getElementById("log-box").innerHTML = log;
             updateUI();
             generateCombatChoices();
         }
 
+        autoEquipBestWeapon();
         renderScene("med_bay");
     </script>
 </body>
